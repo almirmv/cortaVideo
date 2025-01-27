@@ -13,6 +13,7 @@ class CortaVideoApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Flutter Demo',
       theme: ThemeData(
         primarySwatch: Colors.blue,
@@ -34,6 +35,7 @@ class _MyHomePageState extends State<MyHomePage> {
   String? _filePath = 'Nenhum arquivo selecionado';
   String? _fileExtension = '';
   String? _tamanho = '0';
+  bool _botaoCortarVisivel = false;
 
   String _status = 'aguardando selecionar arquivo.';
   String dropdownvalue = '20Mb';
@@ -46,51 +48,72 @@ class _MyHomePageState extends State<MyHomePage> {
   ];
   @override
   Widget build(BuildContext context) {
+    final ButtonStyle _style =
+        ElevatedButton.styleFrom(textStyle: const TextStyle(fontSize: 20));
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            ElevatedButton(
-              onPressed: _pickFile,
-              child: const Text('Escolha o Vídeo'),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Text('Entrada'),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('Extimativas'),
+                ElevatedButton(
+                  style: _style,
+                  onPressed: _pickFile,
+                  child: const Text('Escolha o Vídeo'),
+                ),
+                Text(
+                  '$_filePath',
+                  style: Theme.of(context).textTheme.headline6,
+                ),
+                Text(
+                  'Tamanho: $_tamanho bytes',
+                ),
+                Text(
+                  'Status: $_status',
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Tamanho máximo: '),
+                    DropdownButton(
+                      value: dropdownvalue, // Initial Value
+                      icon: const Icon(
+                          Icons.keyboard_arrow_down), // Down Arrow Icon
+                      // Array list of items
+                      items: items.map((String items) {
+                        return DropdownMenuItem(
+                          value: items,
+                          child: Text(items),
+                        );
+                      }).toList(),
+                      // After selecting the desired option,it will
+                      // change button value to selected value
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          dropdownvalue = newValue!;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                Visibility(
+                  visible: _botaoCortarVisivel,
+                  child: ElevatedButton(
+                    onPressed: _cortaVideo,
+                    child: const Text('Cortar Vídeo'),
+                  ),
+                ),
+              ],
             ),
-            Text(
-              '$_filePath',
-              style: Theme.of(context).textTheme.headline6,
-            ),
-            Text(
-              'Tamanho: $_tamanho bytes',
-            ),
-            Text(
-              'Status: $_status',
-            ),
-            DropdownButton(
-              value: dropdownvalue, // Initial Value
-              icon: const Icon(Icons.keyboard_arrow_down), // Down Arrow Icon
-              // Array list of items
-              items: items.map((String items) {
-                return DropdownMenuItem(
-                  value: items,
-                  child: Text(items),
-                );
-              }).toList(),
-              // After selecting the desired option,it will
-              // change button value to selected value
-              onChanged: (String? newValue) {
-                setState(() {
-                  dropdownvalue = newValue!;
-                });
-              },
-            ),
-            ElevatedButton(
-              onPressed: _cortaVideo,
-              child: const Text('Cortar Vídeo'),
-            ),
+            Text('Saída'),
           ],
         ),
       ),
@@ -106,13 +129,18 @@ class _MyHomePageState extends State<MyHomePage> {
       _fileExtension = file.extension;
       _tamanho = file.size.toString();
       _status = 'pronto para cortar...';
+      _botaoCortarVisivel = true;
       print(file.name);
       print(file.bytes);
       print(file.size);
       print(file.extension);
       print(file.path);
     } else {
-      print('Janela fechada. Não escolheu arquivo');
+      _filePath = 'Nenhum arquivo selecionado';
+      _fileExtension = '';
+      _tamanho = '0';
+      _status = 'aguardando selecionar arquivo.';
+      _botaoCortarVisivel = false;
     }
     setState(() {});
   }
@@ -186,9 +214,11 @@ class _MyHomePageState extends State<MyHomePage> {
     Directory('$openFileDir$openFileName').create(); //criar diretorio
     while (working == true) {
       //gera novo nome de saida
-      outFileName = '$openFileDir$openFileName\\out_$fileIndex.$_fileExtension';
+      outFileName =
+          '$openFileDir$openFileName$openFileName\_$fileIndex.$_fileExtension';
       _status = 'cortando... $outFileName';
       setState(() {});
+
       try {
         var process = await Process.run(
           'ffmpeg',
@@ -208,15 +238,15 @@ class _MyHomePageState extends State<MyHomePage> {
         );
 
         var exitCode = process.exitCode;
-        print('exit code: $exitCode');
+        //print('exit code: $exitCode');
         if (exitCode != 0) {
-          print('Erro!');
+          // print('Erro!');
           _status = 'Erro: exit code $exitCode';
           setState(() {});
           return;
         }
       } catch (e) {
-        print(e);
+        _status = e.toString();
       }
       //pegar a duração do video recem cortado...
       var getFileTimeprocess = await Process.run(
@@ -234,13 +264,13 @@ class _MyHomePageState extends State<MyHomePage> {
         workingDirectory: directoryExe.path,
         runInShell: true,
       );
-      print('Ultimo Start: $startTime');
+      //print('Ultimo Start: $startTime');
       double? value = double.tryParse(getFileTimeprocess.stdout);
       if (value != null) {
         startTime = startTime + value;
       }
 
-      print('tempo processado: $startTime');
+      //print('tempo processado: $startTime');
 
       if ((totalDurationVideo - startTime) < 1) {
         _status = 'Cortes completados com sucesso!';
